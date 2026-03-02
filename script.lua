@@ -3,6 +3,7 @@ local Workspace = game:GetService("Workspace")
 local VirtualUser = game:GetService("VirtualUser")
 local Lighting = game:GetService("Lighting")
 local TweenService = game:GetService("TweenService")
+local Teams = game:GetService("Teams")
 
 local player = Players.LocalPlayer
 
@@ -17,8 +18,20 @@ local ouroTotal = 0
 local faseAtual = 1
 local runAtual = 1
 local menuMinimizado = false
-local tamanhoOriginal = UDim2.new(0, 500, 0, 250)
+local submenuTimesVisivel = false
+local tamanhoOriginal = UDim2.new(0, 500, 0, 320)
 local tamanhoMinimizado = UDim2.new(0, 200, 0, 40)
+
+-- Cores dos times disponíveis
+local coresTimes = {
+    {Nome = "⚫ Preto", Cor = Color3.fromRGB(0, 0, 0), TeamName = "Preto", TeamColor = BrickColor.new("Black")},
+    {Nome = "🔵 Azul", Cor = Color3.fromRGB(0, 0, 255), TeamName = "Azul", TeamColor = BrickColor.new("Bright blue")},
+    {Nome = "🟢 Verde", Cor = Color3.fromRGB(0, 255, 0), TeamName = "Verde", TeamColor = BrickColor.new("Bright green")},
+    {Nome = "🟣 Roxo", Cor = Color3.fromRGB(128, 0, 128), TeamName = "Roxo", TeamColor = BrickColor.new("Bright violet")},
+    {Nome = "🔴 Vermelho", Cor = Color3.fromRGB(255, 0, 0), TeamName = "Vermelho", TeamColor = BrickColor.new("Bright red")},
+    {Nome = "⚪ Branco", Cor = Color3.fromRGB(255, 255, 255), TeamName = "Branco", TeamColor = BrickColor.new("White")},
+    {Nome = "🟡 Amarelo", Cor = Color3.fromRGB(255, 255, 0), TeamName = "Amarelo", TeamColor = BrickColor.new("Bright yellow")}
+}
 
 function getRoot()
     local character = player.Character
@@ -35,7 +48,6 @@ function autoFarm(currentRun)
         Character = player.Character
     end
     
-    -- Verifica se a estrutura do jogo existe
     local BoatStages = Workspace:FindFirstChild("BoatStages")
     if not BoatStages then 
         wait(2)
@@ -48,7 +60,6 @@ function autoFarm(currentRun)
         return
     end
 
-    -- Passa por todas as 10 fases
     for i = 1, 10 do
         if not farmAtivo then break end
         
@@ -57,10 +68,8 @@ function autoFarm(currentRun)
             local DarknessPart = Stage:FindFirstChild("DarknessPart")
             
             if DarknessPart then
-                -- Teleport para a próxima fase
                 Character.HumanoidRootPart.CFrame = DarknessPart.CFrame
                 
-                -- Truque da parte temporária (original do GitHub)
                 local Part = Instance.new("Part")
                 Part.Anchored = true
                 Part.Position = Character.HumanoidRootPart.Position - Vector3.new(0, 6, 0)
@@ -75,7 +84,6 @@ function autoFarm(currentRun)
         end
     end
 
-    -- Vai para o baú final
     if farmAtivo then
         local TheEnd = NormalStages:FindFirstChild("TheEnd")
         if TheEnd then
@@ -83,7 +91,6 @@ function autoFarm(currentRun)
             if GoldenChest then
                 local Trigger = GoldenChest:FindFirstChild("Trigger")
                 if Trigger then
-                    -- Repete até a luz mudar (mecânica do jogo)
                     repeat 
                         wait()
                         if Character and Character.HumanoidRootPart then
@@ -100,24 +107,17 @@ function autoFarm(currentRun)
         end
     end
 
-    -- Aguarda respawn e reinicia automaticamente
     if farmAtivo then
-        -- Espera morrer e renascer
         local Respawned = false
         local Connection
         Connection = player.CharacterAdded:Connect(function(newChar)
             Respawned = true
             Connection:Disconnect()
-            
-            -- Pequena pausa para o jogo carregar
             wait(2)
-            
-            -- Reinicia a fase atual para 1 na próxima run
             faseAtual = 1
             atualizarUI()
         end)
 
-        -- Tempo máximo de espera (30 segundos)
         local tempoEspera = 0
         while not Respawned and farmAtivo and tempoEspera < 30 do
             wait(1)
@@ -132,7 +132,6 @@ function iniciarFarmOriginal()
     runAtual = 1
     while farmAtivo do
         if farmAtivo then
-            -- Tenta executar o farm
             local success, err = pcall(function()
                 autoFarm(runAtual)
             end)
@@ -148,13 +147,49 @@ function iniciarFarmOriginal()
     end
 end
 
+-- Função para teleportar para um time específico
+function teleportarParaCor(teamInfo)
+    local root = getRoot()
+    if not root then return end
+    
+    -- Procura por uma base ou área do time correspondente
+    for _, obj in pairs(Workspace:GetDescendants()) do
+        if obj:IsA("Part") or obj:IsA("Model") then
+            -- Verifica se o objeto está relacionado ao time
+            if obj.Name:find(teamInfo.TeamName) or obj.Name:find("Team") or obj.Name:find("Base") then
+                if obj:IsA("Model") and obj.PrimaryPart then
+                    root.CFrame = obj.PrimaryPart.CFrame * CFrame.new(0, 5, 0)
+                elseif obj:IsA("Part") then
+                    root.CFrame = obj.CFrame * CFrame.new(0, 5, 0)
+                end
+                
+                -- Feedback visual
+                print("🚀 Teleportado para time " .. teamInfo.Nome)
+                return
+            end
+        end
+    end
+    
+    -- Se não encontrar área específica, tenta mudar a cor do personagem
+    local character = player.Character
+    if character then
+        for _, part in pairs(character:GetChildren()) do
+            if part:IsA("Part") or part:IsA("MeshPart") then
+                part.BrickColor = teamInfo.TeamColor
+                part.Material = Enum.Material.Neon
+            end
+        end
+        print("🎨 Cor alterada para " .. teamInfo.Nome)
+    end
+end
+
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "CoringaAutoFarm"
 screenGui.ResetOnSpawn = false
 screenGui.Parent = player:WaitForChild("PlayerGui")
 screenGui.DisplayOrder = 999
 
--- BOTÃO FLUTUANTE
+-- Botão flutuante
 local botaoFlutuante = Instance.new("TextButton")
 botaoFlutuante.Size = UDim2.new(0, 50, 0, 50)
 botaoFlutuante.Position = UDim2.new(0.02, 0, 0.5, -25)
@@ -172,10 +207,10 @@ local botaoCorner = Instance.new("UICorner")
 botaoCorner.CornerRadius = UDim.new(1, 0)
 botaoCorner.Parent = botaoFlutuante
 
--- FRAME PRINCIPAL
+-- Frame principal
 local frame = Instance.new("Frame")
 frame.Size = tamanhoOriginal
-frame.Position = UDim2.new(0.5, -250, 0.5, -125)
+frame.Position = UDim2.new(0.5, -250, 0.5, -160)
 frame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
 frame.BackgroundTransparency = 0.1
 frame.Active = true
@@ -187,6 +222,7 @@ local corner = Instance.new("UICorner")
 corner.CornerRadius = UDim.new(0, 10)
 corner.Parent = frame
 
+-- Título
 local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -70, 0, 40)
 title.Position = UDim2.new(0, 0, 0, 0)
@@ -201,6 +237,7 @@ local titleCorner = Instance.new("UICorner")
 titleCorner.CornerRadius = UDim.new(0, 10)
 titleCorner.Parent = title
 
+-- Botão minimizar
 local btnMinimizar = Instance.new("TextButton")
 btnMinimizar.Size = UDim2.new(0, 30, 0, 30)
 btnMinimizar.Position = UDim2.new(1, -65, 0, 5)
@@ -215,6 +252,7 @@ local btnMinimizarCorner = Instance.new("UICorner")
 btnMinimizarCorner.CornerRadius = UDim.new(0, 5)
 btnMinimizarCorner.Parent = btnMinimizar
 
+-- Botão fechar
 local btnFechar = Instance.new("TextButton")
 btnFechar.Size = UDim2.new(0, 30, 0, 30)
 btnFechar.Position = UDim2.new(1, -30, 0, 5)
@@ -229,12 +267,14 @@ local btnFecharCorner = Instance.new("UICorner")
 btnFecharCorner.CornerRadius = UDim.new(0, 5)
 btnFecharCorner.Parent = btnFechar
 
+-- Container principal
 local container = Instance.new("Frame")
 container.Size = UDim2.new(1, -20, 1, -50)
 container.Position = UDim2.new(0, 10, 0, 45)
 container.BackgroundTransparency = 1
 container.Parent = frame
 
+-- Labels de status
 local statusLabel = Instance.new("TextLabel")
 statusLabel.Size = UDim2.new(0, 120, 0, 40)
 statusLabel.Position = UDim2.new(0, 0, 0, 0)
@@ -291,13 +331,14 @@ local runCorner = Instance.new("UICorner")
 runCorner.CornerRadius = UDim.new(0, 5)
 runCorner.Parent = runLabel
 
+-- Botões de ação
 local btnIniciar = Instance.new("TextButton")
-btnIniciar.Size = UDim2.new(0, 230, 0, 45)
+btnIniciar.Size = UDim2.new(0, 150, 0, 45)
 btnIniciar.Position = UDim2.new(0, 0, 0, 55)
 btnIniciar.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
-btnIniciar.Text = "▶️ INICIAR FARM"
+btnIniciar.Text = "▶️ INICIAR"
 btnIniciar.TextColor3 = Color3.fromRGB(255, 255, 255)
-btnIniciar.TextSize = 16
+btnIniciar.TextSize = 14
 btnIniciar.Font = Enum.Font.GothamBold
 btnIniciar.Parent = container
 
@@ -306,10 +347,10 @@ btnCorner.CornerRadius = UDim.new(0, 5)
 btnCorner.Parent = btnIniciar
 
 local btnVelocidade = Instance.new("TextButton")
-btnVelocidade.Size = UDim2.new(0, 230, 0, 45)
-btnVelocidade.Position = UDim2.new(0, 250, 0, 55)
+btnVelocidade.Size = UDim2.new(0, 150, 0, 45)
+btnVelocidade.Position = UDim2.new(0, 160, 0, 55)
 btnVelocidade.BackgroundColor3 = Color3.fromRGB(255, 100, 0)
-btnVelocidade.Text = "⚡ VELOCIDADE NORMAL"
+btnVelocidade.Text = "⚡ VELOCIDADE"
 btnVelocidade.TextColor3 = Color3.fromRGB(255, 255, 255)
 btnVelocidade.TextSize = 14
 btnVelocidade.Font = Enum.Font.GothamBold
@@ -318,6 +359,79 @@ btnVelocidade.Parent = container
 local btnVelocidadeCorner = Instance.new("UICorner")
 btnVelocidadeCorner.CornerRadius = UDim.new(0, 5)
 btnVelocidadeCorner.Parent = btnVelocidade
+
+-- NOVO BOTÃO: TIMES
+local btnTimes = Instance.new("TextButton")
+btnTimes.Size = UDim2.new(0, 150, 0, 45)
+btnTimes.Position = UDim2.new(0, 320, 0, 55)
+btnTimes.BackgroundColor3 = Color3.fromRGB(128, 0, 128)
+btnTimes.Text = "👥 TIMES"
+btnTimes.TextColor3 = Color3.fromRGB(255, 255, 255)
+btnTimes.TextSize = 14
+btnTimes.Font = Enum.Font.GothamBold
+btnTimes.Parent = container
+
+local btnTimesCorner = Instance.new("UICorner")
+btnTimesCorner.CornerRadius = UDim.new(0, 5)
+btnTimesCorner.Parent = btnTimes
+
+-- SUBMENU DE CORES (inicialmente invisível)
+local submenuTimes = Instance.new("Frame")
+submenuTimes.Size = UDim2.new(0, 470, 0, 140)
+submenuTimes.Position = UDim2.new(0, 0, 0, 110)
+submenuTimes.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+submenuTimes.BackgroundTransparency = 0.1
+submenuTimes.Visible = false
+submenuTimes.Parent = container
+
+local submenuCorner = Instance.new("UICorner")
+submenuCorner.CornerRadius = UDim.new(0, 8)
+submenuCorner.Parent = submenuTimes
+
+local submenuTitle = Instance.new("TextLabel")
+submenuTitle.Size = UDim2.new(1, 0, 0, 25)
+submenuTitle.BackgroundTransparency = 1
+submenuTitle.Text = "📌 SELECIONE UMA COR"
+submenuTitle.TextColor3 = Color3.fromRGB(255, 215, 0)
+submenuTitle.TextSize = 12
+submenuTitle.Font = Enum.Font.GothamBold
+submenuTitle.Parent = submenuTimes
+
+-- Criar botões de cores (2 linhas de 4 cores)
+local posX = 10
+local posY = 30
+local colunas = 0
+
+for i, corInfo in pairs(coresTimes) do
+    local btnCor = Instance.new("TextButton")
+    btnCor.Size = UDim2.new(0, 100, 0, 40)
+    btnCor.Position = UDim2.new(0, posX, 0, posY)
+    btnCor.BackgroundColor3 = corInfo.Cor
+    btnCor.Text = corInfo.Nome
+    btnCor.TextColor3 = corInfo.Cor.r + corInfo.Cor.g + corInfo.Cor.b > 1.5 and Color3.fromRGB(0, 0, 0) or Color3.fromRGB(255, 255, 255)
+    btnCor.TextSize = 12
+    btnCor.Font = Enum.Font.GothamBold
+    btnCor.Parent = submenuTimes
+    
+    local btnCorCorner = Instance.new("UICorner")
+    btnCorCorner.CornerRadius = UDim.new(0, 5)
+    btnCorCorner.Parent = btnCor
+    
+    btnCor.MouseButton1Click:Connect(function()
+        teleportarParaCor(corInfo)
+        submenuTimes.Visible = false
+        btnTimes.Text = "👥 " .. corInfo.Nome
+    end)
+    
+    posX = posX + 115
+    colunas = colunas + 1
+    
+    if colunas == 4 then
+        colunas = 0
+        posX = 10
+        posY = 80
+    end
+end
 
 function atualizarUI()
     if farmAtivo then
@@ -358,6 +472,7 @@ function minimizarMenu()
     end
 end
 
+-- Conexões dos botões
 botaoFlutuante.MouseButton1Click:Connect(function()
     if menuMinimizado then
         minimizarMenu()
@@ -367,7 +482,7 @@ end)
 btnIniciar.MouseButton1Click:Connect(function()
     farmAtivo = not farmAtivo
     getgenv().TreasureAutoFarm.Enabled = farmAtivo
-    btnIniciar.Text = farmAtivo and "⏸️ PAUSAR FARM" or "▶️ INICIAR FARM"
+    btnIniciar.Text = farmAtivo and "⏸️ PAUSAR" or "▶️ INICIAR"
     atualizarUI()
     
     if farmAtivo then
@@ -388,16 +503,28 @@ end)
 btnVelocidade.MouseButton1Click:Connect(function()
     if getgenv().TreasureAutoFarm.Teleport == 2 then
         getgenv().TreasureAutoFarm.Teleport = 0.5
-        btnVelocidade.Text = "⚡ VELOCIDADE RÁPIDA"
+        btnVelocidade.Text = "⚡ RÁPIDO"
         btnVelocidade.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
     elseif getgenv().TreasureAutoFarm.Teleport == 0.5 then
         getgenv().TreasureAutoFarm.Teleport = 3
-        btnVelocidade.Text = "⚡ VELOCIDADE LENTA"
+        btnVelocidade.Text = "⚡ LENTO"
         btnVelocidade.BackgroundColor3 = Color3.fromRGB(0, 100, 255)
     else
         getgenv().TreasureAutoFarm.Teleport = 2
-        btnVelocidade.Text = "⚡ VELOCIDADE NORMAL"
+        btnVelocidade.Text = "⚡ NORMAL"
         btnVelocidade.BackgroundColor3 = Color3.fromRGB(255, 100, 0)
+    end
+end)
+
+-- Botão Times: abre/fecha submenu
+btnTimes.MouseButton1Click:Connect(function()
+    submenuTimes.Visible = not submenuTimes.Visible
+    if submenuTimes.Visible then
+        btnTimes.Text = "👥 FECHAR"
+        btnTimes.BackgroundColor3 = Color3.fromRGB(150, 0, 150)
+    else
+        btnTimes.Text = "👥 TIMES"
+        btnTimes.BackgroundColor3 = Color3.fromRGB(128, 0, 128)
     end
 end)
 
