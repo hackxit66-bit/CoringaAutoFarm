@@ -483,12 +483,27 @@ function vidaInfinitaLoop()
     end)
 end
 
-function modoAmigoLoop()
+-- Consulta a amizade sem bloquear a atualização do menu.
+local function ehAmigo(alvo)
+    local id = alvo.UserId
+    local registro = amigos[id]
+    if registro and registro.consultando then return false end
+    if registro and os.clock() - registro.verificadoEm < 60 then
+        return registro.ehAmigo
+    end
+
+    amigos[id] = {consultando = true}
     spawn(function()
-        while getgenv().CoringaFarm.ModoAmigo do
-            wait(2)
+        local sucesso, resultado = pcall(function()
+            return player:IsFriendsWith(id)
+        end)
+        if sucesso and type(resultado) == "boolean" then
+            amigos[id] = {ehAmigo = resultado, verificadoEm = os.clock()}
+        else
+            amigos[id] = nil
         end
     end)
+    return false
 end
 
 function antiQuedaLoop()
@@ -658,7 +673,7 @@ function verJogadoresProximos()
     local root = getRoot()
     if root then
         for _, otherPlayer in pairs(Players:GetPlayers()) do
-            if otherPlayer ~= player then
+            if otherPlayer ~= player and (not getgenv().CoringaFarm.ModoAmigo or ehAmigo(otherPlayer)) then
                 local otherChar = otherPlayer.Character
                 local otherRoot = getCharacterRoot(otherChar)
                 if otherRoot then
@@ -1280,6 +1295,10 @@ function criarBotoesPlayer()
             btnToggle.BackgroundColor3 = getgenv().CoringaFarm[func.var] and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(100, 100, 100)
             btnToggle.Text = getgenv().CoringaFarm[func.var] and "ON" or "OFF"
             
+            if func.var == "ModoAmigo" then
+                verJogadoresProximos()
+                return
+            end
             if not getgenv().CoringaFarm[func.var] then
                 if func.var == "Voo" then destruirBotoesVoo() end
                 return
@@ -1298,7 +1317,6 @@ function criarBotoesPlayer()
             elseif func.var == "AntiAfk" then antiAfkLoop()
             elseif func.var == "Noclip" then noclipLoop()
             elseif func.var == "VidaInfinita" then vidaInfinitaLoop()
-            elseif func.var == "ModoAmigo" then modoAmigoLoop()
             elseif func.var == "AntiQueda" then antiQuedaLoop()
             end
         end)
