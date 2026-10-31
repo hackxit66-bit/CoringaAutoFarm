@@ -35,6 +35,7 @@ local ouroTotal = 0
 local faseAtual = 1
 local runAtual = 1
 local menuMinimizado = false
+local menuAberto = true
 local mostrandoJogadores = true
 local mostrandoPlayers = false
 local mostrandoConfig = false
@@ -202,12 +203,16 @@ local textos = {
     }
 }
 
+local function getCharacterRoot(character)
+    if not character then return nil end
+    local root = character:FindFirstChild("HumanoidRootPart")
+    if root and root:IsA("BasePart") then return root end
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    return (humanoid and humanoid.RootPart) or character.PrimaryPart
+end
+
 function getRoot()
-    local character = player.Character
-    if character then
-        return character:FindFirstChild("HumanoidRootPart")
-    end
-    return nil
+    return getCharacterRoot(player.Character)
 end
 
 function getHumanoid()
@@ -272,9 +277,11 @@ function criarESPJogador(alvo)
     billboard.Size = UDim2.new(0, 200, 0, 50)
     billboard.StudsOffset = Vector3.new(0, 3, 0)
     billboard.AlwaysOnTop = true
-    billboard.Parent = alvo.Character:FindFirstChild("Head") or alvo.Character:FindFirstChild("HumanoidRootPart")
+    local alvoRoot = getCharacterRoot(alvo.Character)
+    billboard.Parent = alvo.Character:FindFirstChild("Head") or alvoRoot
     
-    local distancia = alvo.Character.HumanoidRootPart and math.floor((alvo.Character.HumanoidRootPart.Position - getRoot().Position).Magnitude) or 0
+    local root = getRoot()
+    local distancia = alvoRoot and root and math.floor((alvoRoot.Position - root.Position).Magnitude) or 0
     
     local texto = Instance.new("TextLabel")
     texto.Size = UDim2.new(1, 0, 1, 0)
@@ -653,8 +660,9 @@ function verJogadoresProximos()
         for _, otherPlayer in pairs(Players:GetPlayers()) do
             if otherPlayer ~= player then
                 local otherChar = otherPlayer.Character
-                if otherChar and otherChar:FindFirstChild("HumanoidRootPart") then
-                    local dist = (otherChar.HumanoidRootPart.Position - root.Position).Magnitude
+                local otherRoot = getCharacterRoot(otherChar)
+                if otherRoot then
+                    local dist = (otherRoot.Position - root.Position).Magnitude
                     table.insert(jogadoresProximos, {player = otherPlayer, dist = dist})
                 end
             end
@@ -668,10 +676,8 @@ function teleportarParaJogador(alvo)
     local root = getRoot()
     if not root then return end
     
-    local alvoChar = alvo.Character
-    if not alvoChar then return end
-    
-    local alvoRoot = alvoChar:FindFirstChild("HumanoidRootPart")
+    if not alvo then return end
+    local alvoRoot = getCharacterRoot(alvo.Character)
     if not alvoRoot then return end
     
     root.CFrame = alvoRoot.CFrame * CFrame.new(0, 5, 2)
@@ -804,6 +810,8 @@ botaoFlutuante.Parent = screenGui
 Instance.new("UICorner", botaoFlutuante).CornerRadius = UDim.new(1, 0)
 
 -- FUNÇÃO PARA APLICAR TEMA
+local frame
+
 function aplicarTema(tema)
     local corFundo = coresFundo[tema]
     if not corFundo then return end
@@ -811,7 +819,7 @@ function aplicarTema(tema)
 end
 
 -- FRAME PRINCIPAL
-local frame = Instance.new("Frame")
+frame = Instance.new("Frame")
 frame.Size = tamanhoOriginal
 frame.Position = UDim2.new(0.5, -200, 0.5, -150)
 frame.BackgroundColor3 = coresFundo[temaAtual]
@@ -1272,6 +1280,11 @@ function criarBotoesPlayer()
             btnToggle.BackgroundColor3 = getgenv().CoringaFarm[func.var] and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(100, 100, 100)
             btnToggle.Text = getgenv().CoringaFarm[func.var] and "ON" or "OFF"
             
+            if not getgenv().CoringaFarm[func.var] then
+                if func.var == "Voo" then destruirBotoesVoo() end
+                return
+            end
+
             if func.var == "Velocidade" then velocidadeLoop()
             elseif func.var == "VelocidadeForcada" then velocidadeForcadaLoop()
             elseif func.var == "Invisivel" then invisivelLoop()
@@ -1484,9 +1497,12 @@ end)
 
 btnMinimizar.MouseButton1Click:Connect(minimizarMenu)
 btnFechar.MouseButton1Click:Connect(function() 
+    menuAberto = false
     farmAtivo = false
     farmCancelado = true
-    getgenv().CoringaFarm.Enabled = false 
+    for key, value in pairs(getgenv().CoringaFarm) do
+        if type(value) == "boolean" then getgenv().CoringaFarm[key] = false end
+    end
     limparEfeitos()
     removerESP()
     destruirBotoesVoo()
@@ -1494,17 +1510,18 @@ btnFechar.MouseButton1Click:Connect(function()
 end)
 
 spawn(function()
-    while true do
+    while menuAberto do
         wait(1)
+        if not menuAberto then break end
         if farmAtivo then temporizador = temporizador + 1 end
         atualizarUI()
     end
 end)
 
 spawn(function()
-    while true do
+    while menuAberto do
         wait(3)
-        if mostrandoJogadores then verJogadoresProximos() end
+        if menuAberto and mostrandoJogadores then verJogadoresProximos() end
     end
 end)
 

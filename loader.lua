@@ -20,10 +20,10 @@ function baixarScript()
         return game:HttpGet("https://raw.githubusercontent.com/" .. repo .. "/" .. nomeScript .. "/main/script.lua")
     end)
     
-    if sucesso and script then
+    if sucesso and type(script) == "string" and script:match("%S") then
         return script
     end
-    return nil
+    return nil, sucesso and "resposta vazia ou inválida" or tostring(script)
 end
 
 function limparCache()
@@ -42,16 +42,22 @@ end
 
 wait(0.5)
 
-local scriptConteudo = baixarScript()
+local scriptConteudo, erroDownload = baixarScript()
 
 if scriptConteudo then
     wait(0.5)
     
     local sucesso, erro = pcall(function()
-        loadstring(scriptConteudo)()
+        local executar, erroCompilacao = loadstring(scriptConteudo)
+        if not executar then
+            error("erro ao compilar: " .. tostring(erroCompilacao))
+        end
+        executar()
     end)
     
     if not sucesso then
-        
+        warn("[CoringaAutoFarm] Falha ao executar o script: " .. tostring(erro))
     end
+else
+    warn("[CoringaAutoFarm] Falha ao baixar o script: " .. tostring(erroDownload))
 end
