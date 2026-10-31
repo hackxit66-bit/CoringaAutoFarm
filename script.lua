@@ -258,13 +258,38 @@ function efeitoUnicoLoop()
     end)
 end
 
+-- Consulta a amizade sem bloquear a atualização do menu.
+local function ehAmigo(alvo)
+    local id = alvo.UserId
+    local registro = amigos[id]
+    if registro and registro.consultando then return false end
+    if registro and os.clock() - registro.verificadoEm < 60 then
+        return registro.ehAmigo
+    end
+
+    amigos[id] = {consultando = true}
+    spawn(function()
+        local sucesso, resultado = pcall(function()
+            return player:IsFriendsWith(id)
+        end)
+        if sucesso and type(resultado) == "boolean" then
+            amigos[id] = {ehAmigo = resultado, verificadoEm = os.clock()}
+        else
+            amigos[id] = nil
+        end
+    end)
+    return false
+end
+
+
 -- ESP MELHORADO
 function criarESPJogador(alvo)
     if not alvo.Character then return end
     
+    local amigo = ehAmigo(alvo)
     local highlight = Instance.new("Highlight")
     highlight.Name = "ESP_" .. alvo.Name
-    highlight.FillColor = Color3.fromRGB(255, 0, 0)
+    highlight.FillColor = amigo and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
     highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
     highlight.FillTransparency = 0.7
     highlight.OutlineTransparency = 0
@@ -286,7 +311,7 @@ function criarESPJogador(alvo)
     local texto = Instance.new("TextLabel")
     texto.Size = UDim2.new(1, 0, 1, 0)
     texto.BackgroundTransparency = 1
-    texto.Text = alvo.Name .. " | " .. distancia .. "m"
+    texto.Text = (amigo and "🤝 " or "") .. alvo.Name .. " | " .. distancia .. "m"
     texto.TextColor3 = Color3.fromRGB(255, 255, 255)
     texto.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
     texto.TextStrokeTransparency = 0
@@ -483,28 +508,6 @@ function vidaInfinitaLoop()
     end)
 end
 
--- Consulta a amizade sem bloquear a atualização do menu.
-local function ehAmigo(alvo)
-    local id = alvo.UserId
-    local registro = amigos[id]
-    if registro and registro.consultando then return false end
-    if registro and os.clock() - registro.verificadoEm < 60 then
-        return registro.ehAmigo
-    end
-
-    amigos[id] = {consultando = true}
-    spawn(function()
-        local sucesso, resultado = pcall(function()
-            return player:IsFriendsWith(id)
-        end)
-        if sucesso and type(resultado) == "boolean" then
-            amigos[id] = {ehAmigo = resultado, verificadoEm = os.clock()}
-        else
-            amigos[id] = nil
-        end
-    end)
-    return false
-end
 
 function antiQuedaLoop()
     spawn(function()
@@ -673,12 +676,13 @@ function verJogadoresProximos()
     local root = getRoot()
     if root then
         for _, otherPlayer in pairs(Players:GetPlayers()) do
-            if otherPlayer ~= player and (not getgenv().CoringaFarm.ModoAmigo or ehAmigo(otherPlayer)) then
+            if otherPlayer ~= player then
+                local amigo = ehAmigo(otherPlayer)
                 local otherChar = otherPlayer.Character
                 local otherRoot = getCharacterRoot(otherChar)
-                if otherRoot then
+                if otherRoot and (not getgenv().CoringaFarm.ModoAmigo or amigo) then
                     local dist = (otherRoot.Position - root.Position).Magnitude
-                    table.insert(jogadoresProximos, {player = otherPlayer, dist = dist})
+                    table.insert(jogadoresProximos, {player = otherPlayer, dist = dist, amigo = amigo})
                 end
             end
         end
@@ -1336,7 +1340,7 @@ function atualizarListaJogadores()
         btn.Size = UDim2.new(1, -10, 0, 25)
         btn.Position = UDim2.new(0, 5, 0, yPos)
         btn.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
-        btn.Text = info.player.Name .. " | " .. math.floor(info.dist) .. "m"
+        btn.Text = (info.amigo and "🤝 " or "") .. info.player.Name .. " | " .. math.floor(info.dist) .. "m"
         btn.TextColor3 = Color3.fromRGB(255, 255, 255)
         btn.TextSize = 9
         btn.Font = Enum.Font.GothamBold
