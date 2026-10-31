@@ -43,6 +43,7 @@ local mostrandoIdioma = false
 local mostrandoTemas = false
 local mostrandoOpcoesJogador = false
 local jogadorSelecionado = nil
+local amigoSelecionado = false
 local temporizador = 0
 local jogadoresProximos = {}
 local farmCancelado = false
@@ -281,6 +282,56 @@ local function ehAmigo(alvo)
     return false
 end
 
+
+-- Proteção local para ferramentas comuns enquanto o cursor aponta para o amigo.
+local ferramentasBloqueadas = {}
+local conexaoProtecaoAmigo = nil
+
+local function restaurarFerramentas()
+    for ferramenta in pairs(ferramentasBloqueadas) do
+        pcall(function()
+            if not ferramenta.Enabled then ferramenta.Enabled = true end
+        end)
+        ferramentasBloqueadas[ferramenta] = nil
+    end
+end
+
+local function pararProtecaoAmigo()
+    if conexaoProtecaoAmigo then
+        conexaoProtecaoAmigo:Disconnect()
+        conexaoProtecaoAmigo = nil
+    end
+    restaurarFerramentas()
+end
+
+local function iniciarProtecaoAmigo()
+    pararProtecaoAmigo()
+    local mouse = player:GetMouse()
+    conexaoProtecaoAmigo = RunService.RenderStepped:Connect(function()
+        local alvo = amigoSelecionado and jogadorSelecionado and jogadorSelecionado.Character
+        local apontado = mouse.Target
+        local character = player.Character
+        if not alvo or not apontado or not character or not apontado:IsDescendantOf(alvo) then
+            restaurarFerramentas()
+            return
+        end
+
+        for ferramenta in pairs(ferramentasBloqueadas) do
+            if ferramenta.Parent ~= character then
+                pcall(function()
+                    if not ferramenta.Enabled then ferramenta.Enabled = true end
+                end)
+                ferramentasBloqueadas[ferramenta] = nil
+            end
+        end
+        for _, ferramenta in pairs(character:GetChildren()) do
+            if ferramenta:IsA("Tool") and ferramenta.Enabled then
+                ferramentasBloqueadas[ferramenta] = true
+                ferramenta.Enabled = false
+            end
+        end
+    end)
+end
 
 -- ESP MELHORADO
 function criarESPJogador(alvo)
@@ -1300,6 +1351,7 @@ function criarBotoesPlayer()
             btnToggle.Text = getgenv().CoringaFarm[func.var] and "ON" or "OFF"
             
             if func.var == "ModoAmigo" then
+                if getgenv().CoringaFarm.ModoAmigo then iniciarProtecaoAmigo() else pararProtecaoAmigo() end
                 verJogadoresProximos()
                 return
             end
@@ -1349,6 +1401,7 @@ function atualizarListaJogadores()
         
         btn.MouseButton1Click:Connect(function()
             jogadorSelecionado = info.player
+            amigoSelecionado = info.amigo
             jogadoresLista.Visible = false
             opcoesLista.Visible = true
             mostrandoJogadores = false
@@ -1520,6 +1573,7 @@ end)
 btnMinimizar.MouseButton1Click:Connect(minimizarMenu)
 btnFechar.MouseButton1Click:Connect(function() 
     menuAberto = false
+    pararProtecaoAmigo()
     farmAtivo = false
     farmCancelado = true
     for key, value in pairs(getgenv().CoringaFarm) do
